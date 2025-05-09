@@ -16,6 +16,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM1_Init(void);
 void set_phase(uint8_t hall);
 void Error_Handler(void);
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 
 
 
@@ -70,10 +71,10 @@ int main(void)
 
     while (1)
     {
-        uint8_t hall = READ_HALL();
-
-        set_phase(hall);// Update active IGBTs based on rotor position
-        HAL_Delay(1); // Polling rate
+//        uint8_t hall = READ_HALL();
+//
+//        set_phase(hall);// Update active IGBTs based on rotor position
+//        HAL_Delay(1); // Polling rate
     }
 }
 
@@ -89,10 +90,10 @@ void set_phase(uint8_t hall)
                     TIM_CCER_CC2E | TIM_CCER_CC2NE |
                     TIM_CCER_CC3E | TIM_CCER_CC3NE);
 
-    // Clear any previous polarity misconfiguration (optional redundancy)
-    TIM1->CCER &= ~(TIM_CCER_CC1P | TIM_CCER_CC1NP |
-                    TIM_CCER_CC2P | TIM_CCER_CC2NP |
-                    TIM_CCER_CC3P | TIM_CCER_CC3NP);
+//    // Clear any previous polarity misconfiguration (optional redundancy)
+//    TIM1->CCER &= ~(TIM_CCER_CC1P | TIM_CCER_CC1NP |
+//                    TIM_CCER_CC2P | TIM_CCER_CC2NP |
+//                    TIM_CCER_CC3P | TIM_CCER_CC3NP);
 
     // Set complementary output polarities (CCxNP = 1, active low for low-side)
     TIM1->CCER |= (TIM_CCER_CC1NP | TIM_CCER_CC2NP | TIM_CCER_CC3NP);
@@ -260,6 +261,23 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+
+  // PA6 - Hall A
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // PA7 - Hall B
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // PB0 - Hall C
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 
   // Configure GPIOA6 (Hall sensor A)
       GPIO_InitStruct.Pin = GPIO_PIN_6;  // Configure pin 6 of GPIOA
@@ -301,6 +319,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
@@ -313,6 +336,28 @@ static void MX_GPIO_Init(void)
   * @brief  This function is executed in case of error occurrence.
   * @retval None
   */
+void EXTI0_1_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
+void EXTI4_15_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_6);
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_6 || GPIO_Pin == GPIO_PIN_7 || GPIO_Pin == GPIO_PIN_0)
+    {
+        uint8_t hall = READ_HALL();
+        set_phase(hall);
+    }
+}
+
+
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
